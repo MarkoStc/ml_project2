@@ -1,7 +1,4 @@
 ﻿
----
-
-````markdown
 # 🧠 Team Git Basics (Short & Simple)
 
 ## 🏁 One-time setup (per developer)
@@ -123,21 +120,4 @@ We sync with `main` *only at the end* before merging via Pull Request.
 
 ````
 
----
-
-### ✅ To apply this:
-1. Copy everything above (including the first and last triple backticks)
-2. Open your PowerShell in your repo:
-   ```powershell
-   notepad README.md
-````
-
-3. Paste it, save, close Notepad.
-4. Then:
-
-   ```powershell
-   git add README.md
-   git commit -m "Clean and formatted team Git guide"
-   git push
-   ```
 
