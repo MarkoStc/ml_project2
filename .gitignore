@@ -1,0 +1,20 @@
+# Ignore data and large files
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.zip
+*.gz
+*.tar
+*.tar.gz
+*.h5
+*.pkl
+*.npy
+*.npz
+
+# Ignore temporary or environment files
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.ipynb_checkpoints/
