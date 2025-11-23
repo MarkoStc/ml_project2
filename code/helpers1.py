@@ -20,6 +20,20 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score
 
+
+from sklearn.preprocessing import LabelEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    balanced_accuracy_score,
+    accuracy_score,
+    roc_auc_score,
+    ConfusionMatrixDisplay,
+)
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 import seaborn as sns
@@ -359,8 +373,6 @@ def plot_pca_3d(scores_df: pd.DataFrame,
     plt.show()
 
 
-
-
 def select_top_variable_features(data: dict,
                                  n_keep: int = 2000,
                                  views: list[str] | None = None,
@@ -423,13 +435,7 @@ def select_top_variable_features(data: dict,
         print(f"{v}: kept {k} / {X.shape[1]} features")
 
     return filtered_data, feature_indices
-    
-    
-import numpy as np
-import pandas as pd
-from numpy.linalg import lstsq
-import seaborn as sns
-import matplotlib.pyplot as plt
+
 
 def per_factor_r2_matrix(views: dict[str, pd.DataFrame],
                          Z_df: pd.DataFrame,
@@ -478,7 +484,8 @@ def per_factor_r2_matrix(views: dict[str, pd.DataFrame],
             R2.iloc[k, R2.columns.get_loc(vname)] = 1.0 - sse / sst
 
     return R2
-   
+
+
 def get_pam50(data, view_name: str) -> pd.Series:
     meta = data[view_name].get("meta", None)
     if meta is None or "paper_BRCA_Subtype_PAM50" not in meta.columns:
@@ -487,7 +494,8 @@ def get_pam50(data, view_name: str) -> pd.Series:
     s = s.replace({"nan": np.nan, "None": np.nan, "": np.nan})
     s.name = view_name
     return s
-    
+
+
 def select_top_anova_features(data: dict,
                               n_keep: int = 2000,
                               views: list[str] | None = None,
@@ -578,7 +586,8 @@ def select_top_anova_features(data: dict,
         print(f"{v}: kept {k} / {X.shape[1]} features (ANOVA)")
 
     return filtered_data, feature_indices
-    
+
+
 def select_top_variable_features_per_view(
     data: dict,
     n_keep_per_view: dict,
@@ -730,13 +739,6 @@ def select_top_anova_features_per_view(
     return filtered_data, feature_indices
 
 
-
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-
 def run_pca_view_topKvar(
     data,
     view_name,
@@ -769,7 +771,6 @@ def run_pca_view_topKvar(
     return pca, scores, loadings, top_cols
 
 
-
 def plot_mofa_2d(scores_df, labels=None, x_f=1, y_f=2, title=None):
     x_col = f"Factor{x_f}"
     y_col = f"Factor{y_f}"
@@ -795,4 +796,238 @@ def plot_mofa_2d(scores_df, labels=None, x_f=1, y_f=2, title=None):
     plt.show()
 
 
+# === NEW HELPERS FOR THIS NOTEBOOK ===
 
+def plot_mofa_3d(scores_df: pd.DataFrame,
+                 labels: pd.Series | None = None,
+                 factors: tuple[int, int, int] = (1, 2, 3),
+                 title: str | None = None,
+                 figsize=(7, 6)):
+    """3D scatter of three MOFA factors with optional coloring by labels."""
+    f1, f2, f3 = factors
+    x_col = f"Factor{f1}"
+    y_col = f"Factor{f2}"
+    z_col = f"Factor{f3}"
+
+    if labels is not None:
+        hue_name = labels.name or "label"
+        df = scores_df.join(labels.rename(hue_name)).dropna()
+    else:
+        df = scores_df.copy()
+        hue_name = None
+
+    x = df[x_col]
+    y = df[y_col]
+    z = df[z_col]
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection="3d")
+
+    if hue_name is not None:
+        lab = df[hue_name]
+        classes = lab.unique()
+        colors = plt.cm.tab10(np.linspace(0, 1, len(classes)))
+        for c, col in zip(classes, colors):
+            mask = lab == c
+            ax.scatter(x[mask], y[mask], z[mask],
+                       label=c, s=40, alpha=0.8, color=col)
+        ax.legend()
+    else:
+        ax.scatter(x, y, z, s=40, alpha=0.8)
+
+    ax.set_xlabel(x_col)
+    ax.set_ylabel(y_col)
+    ax.set_zlabel(z_col)
+    if title:
+        ax.set_title(title)
+    plt.tight_layout()
+    plt.show()
+
+
+def get_pam50_any(data: dict,
+                  label_views: tuple[str, ...] = ("mRNA", "DNAm", "RPPA")) -> pd.Series:
+    """Combine PAM50 labels across multiple views into one Series.
+
+    The first non-missing label across the views is kept for each sample.
+    """
+    combined: pd.Series | None = None
+    for v in label_views:
+        if v not in data:
+            continue
+        s = get_pam50(data, v)
+        if combined is None:
+            combined = s.copy()
+        else:
+            combined = combined.combine_first(s)
+
+    if combined is None:
+        return pd.Series(index=[], dtype="object")
+
+    combined.name = "PAM50_any"
+    return combined
+
+
+def factor_class_correlation_matrix(
+    Z_df: pd.DataFrame,
+    labels: pd.Series,
+    n_factors: int | None = None,
+) -> pd.DataFrame:
+    """Correlation between each factor/PC and each class indicator.
+
+    For each class c we build a 0/1 indicator and compute the Pearson
+    correlation with each factor column in Z_df.
+
+    Returns
+    -------
+    DataFrame (n_factors_used x n_classes)
+    """
+    # Align samples
+    labels = labels.dropna()
+    common = Z_df.index.intersection(labels.index)
+    Z = Z_df.loc[common]
+    y = labels.loc[common]
+
+    if n_factors is not None:
+        Z = Z.iloc[:, :n_factors]
+
+    classes = sorted(y.unique())
+    corr = pd.DataFrame(index=Z.columns, columns=classes, dtype=float)
+
+    for c in classes:
+        m = (y == c).astype(float).values
+        for factor in Z.columns:
+            z = Z[factor].values
+            if np.all(z == z[0]) or np.all(m == m[0]):
+                r = np.nan
+            else:
+                r = np.corrcoef(z, m)[0, 1]
+            corr.loc[factor, c] = r
+
+    return corr
+
+
+def run_logreg_on_factors(
+    X_factors: pd.DataFrame,
+    labels_any: pd.Series,
+    title: str,
+    verbose: bool = True,
+):
+    """Logistic regression with CV on factor embeddings.
+
+    Parameters
+    ----------
+    X_factors : DataFrame (n_samples x n_factors)
+        Embedding matrix (e.g. MOFA factors or PCA scores).
+    labels_any : Series
+        Class labels indexed by sample ID (e.g. PAM50_any).
+    title : str
+        Name used in printed output and confusion-matrix title.
+    verbose : bool
+        If True, print metrics and show the confusion matrix.
+
+    Returns
+    -------
+    dict with keys:
+        - title
+        - best_params
+        - mean_cv_bal_acc
+        - std_cv_bal_acc
+        - test_bal_acc
+        - test_acc
+        - test_roc_auc_ovr
+    """
+    # Align X and y by sample ID and drop missing labels
+    y = labels_any.reindex(X_factors.index)
+    mask = y.notna()
+    X = X_factors.loc[mask]
+    y = y.loc[mask]
+
+    # Encode labels
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y)
+
+    # Train / test split
+    Xtr, Xte, ytr, yte = train_test_split(
+        X,
+        y_enc,
+        test_size=0.2,
+        stratify=y_enc,
+        random_state=42,
+    )
+
+    # Pipeline: scaler + multinomial logistic regression
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            (
+                "clf",
+                LogisticRegression(
+                    solver="saga",
+                    multi_class="multinomial",
+                    max_iter=5000,
+                    class_weight="balanced",
+                ),
+            ),
+        ]
+    )
+
+    # Hyperparameter grid and CV
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    param_grid = {
+        "clf__C": [0.01, 0.1, 1.0, 10.0, 100.0],
+        "clf__penalty": ["l1", "l2"],
+    }
+
+    gs = GridSearchCV(
+        pipe,
+        param_grid=param_grid,
+        scoring="balanced_accuracy",
+        cv=cv,
+        n_jobs=-1,
+        refit=True,
+        verbose=0,
+    )
+
+    gs.fit(Xtr, ytr)
+
+    best_params = gs.best_params_
+    mean_cv = gs.best_score_
+    std_cv = gs.cv_results_["std_test_score"][gs.best_index_]
+
+    if verbose:
+        print(f"{title}: best params {best_params}")
+        print(f"CV balanced accuracy: {mean_cv:.3f} ± {std_cv:.3f}")
+
+    # Test-set performance
+    y_pred = gs.predict(Xte)
+    proba = gs.predict_proba(Xte)
+
+    bal_acc_test = balanced_accuracy_score(yte, y_pred)
+    acc_test = accuracy_score(yte, y_pred)
+    roc_auc_ovr = roc_auc_score(yte, proba, multi_class="ovr", average="weighted")
+
+    if verbose:
+        print(f"Test balanced accuracy: {bal_acc_test:.3f}")
+        print(f"Test accuracy:        {acc_test:.3f}")
+        print(f"Test ROC-AUC (OvR):   {roc_auc_ovr:.3f}")
+        print("\nClassification report:")
+        print(classification_report(yte, y_pred, target_names=le.classes_))
+
+        cm = confusion_matrix(yte, y_pred)
+        fig, ax = plt.subplots()
+        disp = ConfusionMatrixDisplay(cm, display_labels=le.classes_)
+        disp.plot(ax=ax, cmap="viridis", colorbar=True)
+        ax.grid(False)
+        plt.title(f"Confusion matrix – {title}")
+        plt.tight_layout()
+        plt.show()
+
+    return {
+        "title": title,
+        "best_params": best_params,
+        "mean_cv_bal_acc": mean_cv,
+        "std_cv_bal_acc": std_cv,
+        "test_bal_acc": bal_acc_test,
+        "test_acc": acc_test,
+        "test_roc_auc_ovr": roc_auc_ovr,
+    }
