@@ -75,6 +75,7 @@ All generic utilities have been consolidated into a single helper module:
 - **`biological_info.ipynb`**  
   Gives some biological info about datasets
 
+In order to load mofa models with the code provided, place the unzipped models in the folder code/exports500/. Then there is no need to train mofa models and one can skip that cells when runnig MOFA_training_models.ipynb.
 
 ## Requirements
 
