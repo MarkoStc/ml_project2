@@ -771,7 +771,14 @@ def run_pca_view_topKvar(
     return pca, scores, loadings, top_cols
 
 
-def plot_mofa_2d(scores_df, labels=None, x_f=1, y_f=2, title=None):
+def plot_mofa_2d(
+    scores_df,
+    labels=None,
+    x_f=1,
+    y_f=2,
+    title=None,
+    savepath: str | None = None
+):
     x_col = f"Factor{x_f}"
     y_col = f"Factor{y_f}"
 
@@ -782,21 +789,28 @@ def plot_mofa_2d(scores_df, labels=None, x_f=1, y_f=2, title=None):
         df = scores_df.copy()
         hue_name = None
 
-    plt.figure(figsize=(6,5))
-    if hue_name is not None:
-        sns.scatterplot(data=df, x=x_col, y=y_col, hue=hue_name, s=40, alpha=0.8)
-    else:
-        sns.scatterplot(data=df, x=x_col, y=y_col, s=40, alpha=0.8)
+    fig, ax = plt.subplots(figsize=(6, 5))
 
-    plt.xlabel(x_col)
-    plt.ylabel(y_col)
+    if hue_name is not None:
+        sns.scatterplot(data=df, x=x_col, y=y_col, hue=hue_name,
+                        s=40, alpha=0.8, ax=ax)
+    else:
+        sns.scatterplot(data=df, x=x_col, y=y_col,
+                        s=40, alpha=0.8, ax=ax)
+
+    ax.set_xlabel(x_col)
+    ax.set_ylabel(y_col)
     if title:
-        plt.title(title)
-    plt.tight_layout()
+        ax.set_title(title)
+
+    fig.tight_layout()
+
+    if savepath is not None:
+        fig.savefig(savepath, dpi=300, bbox_inches="tight")
+
     plt.show()
 
 
-# === NEW HELPERS FOR THIS NOTEBOOK ===
 
 def plot_mofa_3d(scores_df: pd.DataFrame,
                  labels: pd.Series | None = None,
@@ -1018,12 +1032,166 @@ def run_logreg_on_factors(
         disp = ConfusionMatrixDisplay(cm, display_labels=le.classes_)
         disp.plot(ax=ax, cmap="viridis", colorbar=True)
         ax.grid(False)
-        plt.title(f"Confusion matrix – {title}")
+        #plt.title(f"Confusion matrix MOFA")
         plt.tight_layout()
+
+        # --- save for LaTeX ---
+        safe_title = title.replace(" ", "_")
+        fig.savefig(f"confmat_{safe_title}.pdf", dpi=300, bbox_inches="tight")
+
         plt.show()
+
 
     return {
         "title": title,
+        "best_params": best_params,
+        "mean_cv_bal_acc": mean_cv,
+        "std_cv_bal_acc": std_cv,
+        "test_bal_acc": bal_acc_test,
+        "test_acc": acc_test,
+        "test_roc_auc_ovr": roc_auc_ovr,
+    }
+
+def run_logreg_with_pca(
+    X_concat: pd.DataFrame,
+    labels_any: pd.Series,
+    title: str,
+    n_components: int = 15,
+    verbose: bool = True,
+):
+    """Logistic regression with PCA (no data leakage) on concatenated features.
+
+    Steps:
+    - Align X and y by sample ID and drop missing labels.
+    - Train/test split.
+    - Pipeline: StandardScaler -> PCA(n_components) -> multinomial logistic regression.
+    - PCA and scaling are fitted *inside* CV folds (no leakage).
+
+    Parameters
+    ----------
+    X_concat : DataFrame (n_samples x n_features)
+        Original feature matrix (e.g. concatenated omics or raw features).
+    labels_any : Series
+        Class labels indexed by sample ID (e.g. PAM50_any).
+    title : str
+        Name used in printed output and confusion-matrix title.
+    n_components : int
+        Number of principal components to keep in PCA.
+    verbose : bool
+        If True, print metrics and show the confusion matrix.
+
+    Returns
+    -------
+    dict with keys:
+        - title
+        - best_params
+        - mean_cv_bal_acc
+        - std_cv_bal_acc
+        - test_bal_acc
+        - test_acc
+        - test_roc_auc_ovr
+    """
+    # Align X and y by sample ID and drop missing labels
+    y = labels_any.reindex(X_concat.index)
+    mask = y.notna()
+    X = X_concat.loc[mask]
+    y = y.loc[mask]
+
+    # Encode labels
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y)
+
+    # Train / test split
+    Xtr, Xte, ytr, yte = train_test_split(
+        X,
+        y_enc,
+        test_size=0.2,
+        stratify=y_enc,
+        random_state=42,
+    )
+
+    # Pipeline: scaler -> PCA -> multinomial logistic regression
+    # IMPORTANT: PCA is *inside* the pipeline, so in CV:
+    # - scaler is fit on the train fold only
+    # - PCA is fit on the train fold only
+    # ==> no data leakage
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("pca", PCA(n_components=n_components, random_state=42)),
+            (
+                "clf",
+                LogisticRegression(
+                    solver="saga",
+                    multi_class="multinomial",
+                    max_iter=5000,
+                    class_weight="balanced",
+                ),
+            ),
+        ]
+    )
+
+    # Hyperparameter grid and CV (only on the classifier)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    param_grid = {
+        "clf__C": [0.01, 0.1, 1.0, 10.0, 100.0],
+        "clf__penalty": ["l1", "l2"],
+    }
+
+    gs = GridSearchCV(
+        pipe,
+        param_grid=param_grid,
+        scoring="balanced_accuracy",
+        cv=cv,
+        n_jobs=-1,
+        refit=True,
+        verbose=0,
+    )
+
+    # Fit on training part: this will internally
+    # - split Xtr into folds
+    # - fit scaler + PCA + clf on each fold's training data
+    gs.fit(Xtr, ytr)
+
+    best_params = gs.best_params_
+    mean_cv = gs.best_score_
+    std_cv = gs.cv_results_["std_test_score"][gs.best_index_]
+
+    if verbose:
+        print(f"{title} (PCA {n_components}): best params {best_params}")
+        print(f"CV balanced accuracy: {mean_cv:.3f} ± {std_cv:.3f}")
+
+    # Test-set performance (using the refitted best pipeline)
+    y_pred = gs.predict(Xte)
+    proba = gs.predict_proba(Xte)
+
+    bal_acc_test = balanced_accuracy_score(yte, y_pred)
+    acc_test = accuracy_score(yte, y_pred)
+    roc_auc_ovr = roc_auc_score(yte, proba, multi_class="ovr", average="weighted")
+
+    if verbose:
+        print(f"Test balanced accuracy: {bal_acc_test:.3f}")
+        print(f"Test accuracy:        {acc_test:.3f}")
+        print(f"Test ROC-AUC (OvR):   {roc_auc_ovr:.3f}")
+        print("\nClassification report:")
+        print(classification_report(yte, y_pred, target_names=le.classes_))
+
+        cm = confusion_matrix(yte, y_pred)
+        fig, ax = plt.subplots()
+        disp = ConfusionMatrixDisplay(cm, display_labels=le.classes_)
+        disp.plot(ax=ax, cmap="viridis", colorbar=True)
+        ax.grid(False)
+        plt.title(f"Confusion matrix – {title} (PCA {n_components})")
+        plt.tight_layout()
+
+        safe_title = title.replace(" ", "_")
+        fig.savefig(f"confmat_{safe_title}_PCA{n_components}.pdf",
+                    dpi=300, bbox_inches="tight")
+
+        plt.show()
+
+    return {
+        "title": f"{title} (PCA {n_components})",
         "best_params": best_params,
         "mean_cv_bal_acc": mean_cv,
         "std_cv_bal_acc": std_cv,
