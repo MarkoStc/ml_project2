@@ -60,12 +60,12 @@ The recommended execution order is:
   ### 1) Download data
   - Download: **TCGA_BRCA.zip** from Google Drive: https://drive.google.com/drive/folders/1o3YSKcZxi5Ie9GXMNwEPYmvqQg9rG1zJ?usp=sharing
   - Unzip into the repo so you get:
-    - `data/ ...`
+     - `data/ ...`
 
   ### 2) Download pretrained MOFA models 
   - Download: **models_mofa.zip** from Google Drive: https://drive.google.com/drive/folders/1TQRrggB6-CX7fGwo1YSQsur5J8-WR3wn?usp=sharing
   - Unzip into:
-  - `models/mofa/exports_500/ ...`
+     - `models/mofa/exports_500/ ...`
 
 1. **`10_Convert2Pickle.ipynb`**  
    Loads raw TCGA BRCA multi-omics data and converts it into a convenient Python format (e.g. a pickle
