@@ -21,11 +21,7 @@ repo_root/
 │  │  ├─ 50_mofa_pca_comparison.ipynb
 │  │  ├─ 60_integrao.ipynb
 │  │  └─ utils/
-│  │     └─ omic_helpers.py
-│  │
-│  └─ scripts/
-│     └─ (optional helper scripts)
-│
+│        └─ omic_helpers.py
 ├─ data/
 │  └─ (unzipped dataset goes here)
 │
@@ -35,17 +31,11 @@ repo_root/
 │  │     └─ (unzipped MOFA .hdf5 exports go here)
 │  └─ integrao/
 │     └─ (saved IntegrAO models go here)
-│
-├─ results/
-│  └─ figures/
-│     └─ (all figures used in the report)
-│
+|
 ├─ papers/
 │  ├─ IntegrAO.pdf
 │  ├─ MOFA.pdf
 │  └─ ReviewPaperMultiOmics.pdf
-│
-└─ 
 ```
 
 ---
@@ -106,9 +96,9 @@ The recommended execution order is:
 
 ## Shared helper utilities (`utils/`)
 
-All notebooks import shared functionality from `code/notebooks/utils/`.
+All notebooks import shared functionality from `code/notebooks/utils/omic_helpers.py`.
 
-The unified helper module(s) provide:
+The unified helper module provides:
 
 - **Basic utilities**
   - z-scoring of DataFrames
@@ -148,8 +138,6 @@ The unified helper module(s) provide:
   - late-fusion (per-view) logistic regression baseline
 
 ---
-
-## Setup
 
 ### Requirements
 Install dependencies from **`requirements.txt`** (located at the repository root):
