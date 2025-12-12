@@ -146,9 +146,6 @@ The unified helper module(s) provide:
   - generic `GridSearchCV` wrapper with reporting
   - late-fusion (per-view) logistic regression baseline
 
-> Note: Once the final contents of `utils/` are fixed, this section should be updated to list the
-> exact helper files and their responsibilities.
-
 ---
 
 ## Setup
