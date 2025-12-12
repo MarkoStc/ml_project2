@@ -47,15 +47,6 @@ repo_root/
 │
 └─ 
 
-# Benchmarking Multi-Omics Representation Learning on TCGA-BRCA
-Multi-omics analysis of the **TCGA BRCA** cohort (mRNA / DNA-methylation / RPPA), focusing on
-**representation learning (PCA, MOFA, IntegrAO)** and **classification baselines** (logistic regression).
-Subtypes are evaluated using **PAM50** labels (including a combined `PAM50_any` label across views).
-
-All reusable utilities (preprocessing, feature selection, embeddings, plotting, and baselines) are
-centralized in `code/notebooks/utils/` (details below; module documentation will be expanded once the
-final `utils/` contents are fixed).
-
 ---
 
 ## Notebooks (run in this order)
