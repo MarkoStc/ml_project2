@@ -14,12 +14,12 @@ repo_root/
 │
 ├─ code/
 │  ├─ notebooks/
-│  │  ├─ 00_Convert2Pickle.ipynb
-│  │  ├─ 10_biological_info.ipynb
-│  │  ├─ 20_log_reg_baseline.ipynb
-│  │  ├─ 30_MOFA_training_models.ipynb
-│  │  ├─ 40_mofa_pca_comparison.ipynb
-│  │  ├─ 50_integrao.ipynb
+│  │  ├─ 10_Convert2Pickle.ipynb
+│  │  ├─ 20_biological_info.ipynb
+│  │  ├─ 30_log_reg_baseline.ipynb
+│  │  ├─ 40_MOFA_training_models.ipynb
+│  │  ├─ 50_mofa_pca_comparison.ipynb
+│  │  ├─ 60_integrao.ipynb
 │  │  └─ utils/
 │  │     └─ omic_helpers.py
 │  │
