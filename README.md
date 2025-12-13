@@ -72,7 +72,7 @@ repo_root/
 
 ## Notebooks (run in this order)
 
-All main notebooks are located in `code/notebooks/`.  
+All main notebooks are located in `code/`.  
 The recommended execution order is:
 
 0. Download and unzip data and trained models as described:
