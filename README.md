@@ -13,15 +13,25 @@ repo_root/
 ├─ requirements.txt
 │
 ├─ code/
-│  ├─ notebooks/
-│  │  ├─ 10_Convert2Pickle.ipynb
-│  │  ├─ 20_biological_info.ipynb
-│  │  ├─ 30_log_reg_baseline.ipynb
-│  │  ├─ 40_MOFA_training_models.ipynb
-│  │  ├─ 50_mofa_pca_comparison.ipynb
-│  │  ├─ 60_integrao.ipynb
-│  │  └─ utils/
-│        └─ omic_helpers.py
+│  ├─ 10_Convert2Pickle.ipynb
+│  ├─ 20_biological_info.ipynb
+│  ├─ 30_log_reg_baseline.ipynb
+│  ├─ 40_MOFA_training_models.ipynb
+│  ├─ 50_mofa_pca_comparison.ipynb
+│  ├─ 60_run_integrao_experiments.ipynb
+│  └─ utils/
+│     ├─ __init__.py
+│     ├─ config.py
+│     ├─ feature_importance.py
+│     ├─ integrao_pipeline.py
+│     ├─ io_tcga.py
+│     ├─ metrics.py
+│     ├─ omic_helpers.py
+│     ├─ paths.py
+│     ├─ plotting.py
+│     ├─ preprocessing.py
+│     └─ repro.py
+│
 ├─ data/
 │  └─ (unzipped dataset goes here)
 │
@@ -30,12 +40,32 @@ repo_root/
 │  │  └─ exports_500/
 │  │     └─ (unzipped MOFA .hdf5 exports go here)
 │  └─ integrao/
-│     └─ (saved IntegrAO models go here)
-|
+│     └─ supervised_integration_feature_importance/
+│        ├─ scenario1_union_union/
+│        ├─ scenario2_union_testonly/
+│        ├─ scenario3_intersection_train_union_infer/
+│        └─ scenario4_intersection_train_testplusuniononly_infer/
+│
 ├─ papers/
 │  ├─ IntegrAO.pdf
 │  ├─ MOFA.pdf
 │  └─ ReviewPaperMultiOmics.pdf
+│
+└─ results/
+   ├─ figures/
+   │  ├─ eda/
+   │  ├─ integrao/
+   │  ├─ log_reg_mofa/
+   │  └─ .DS_Store
+   └─ runs/
+      └─ integrao/
+         └─ supervised_integration_feature_importance/
+            ├─ scenario1_union_union/
+            ├─ scenario2_union_testonly/
+            ├─ scenario3_intersection_train_union_infer/
+            ├─ scenario4_intersection_train_testplusuniononly_infer/
+            └─ .DS_Store
+
 ```
 
 ---
@@ -88,7 +118,7 @@ The recommended execution order is:
    - 2D/3D embeddings colored by PAM50
    - logistic regression on PCA components vs MOFA factors
 
-6. **`60_integrao.ipynb`**  
+6. **`60_run_integrao_experiments.ipynb`**  
    Trains an **IntegrAO** model and evaluates it for classification.  
    Also includes model analysis, including feature exploration / inspection of IntegrAO-learned feature importance 
 
@@ -96,7 +126,7 @@ The recommended execution order is:
 
 ## Shared helper utilities (`utils/`)
 
-All notebooks import shared functionality from `code/notebooks/utils/omic_helpers.py`.
+All notebooks, but last, import shared functionality from `code/utils/omic_helpers.py`.
 
 The unified helper module provides:
 
@@ -136,6 +166,8 @@ The unified helper module provides:
   - leakage-safe PCA + logistic regression on concatenated raw features
   - generic `GridSearchCV` wrapper with reporting
   - late-fusion (per-view) logistic regression baseline
+
+Last notebook uses other helper scripts from `code/utils/.
 
 ---
 
